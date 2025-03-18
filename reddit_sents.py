@@ -1,73 +1,101 @@
 import streamlit as st
 import praw
 import pandas as pd
-import nltk
-from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import seaborn as sns
+import matplotlib.pyplot as plt
+from textblob import TextBlob
 
-# Download VADER lexicon if not already downloaded
-nltk.download('vader_lexicon')
+# Streamlit Page Config
+st.set_page_config(page_title="Reddit Sentiment Analyzer", layout="wide")
 
-# --- Configure Reddit API ---
-# You must create a Reddit app (https://www.reddit.com/prefs/apps) to get these credentials.
-reddit = praw.Reddit(client_id='YOUR_CLIENT_ID',  # Replace with your client id
-                     client_secret='YOUR_CLIENT_SECRET',  # Replace with your client secret
-                     user_agent='YOUR_USER_AGENT')  # Replace with a descriptive user agent
+# Custom CSS for better UI
+st.markdown(
+    """
+    <style>
+    body {
+        background-color: #0e1117;
+        color: white;
+    }
+    .stTextInput, .stTextArea {
+        background-color: #1e1e1e;
+        color: white;
+    }
+    .stButton>button {
+        background-color: #ff4b4b;
+        color: white;
+        border-radius: 10px;
+    }
+    .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
+        color: #ff4b4b;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Reddit API Authentication
+reddit = praw.Reddit(
+    client_id="PX4BjrFMX5ixQ1IDS73Eeg",
+    client_secret="TNcR3UdwSFugluwOHgOO3tVeIr-15A",
+    user_agent="my-reddit-scraper", # Add your Reddit password
+)
+
+# App Title
+st.title("📊 Reddit Thread Sentiment Analyzer")
+st.markdown("Analyze the sentiment of Reddit threads in real-time.")
+
+# Input Reddit Thread URL
+url = st.text_input("🔗 Enter Reddit Thread URL", "")
 
 
-# --- Functions for scraping and sentiment analysis ---
-def fetch_reddit_thread(url):
-    """Fetches the thread title and all comments from a Reddit thread URL."""
-    submission = reddit.submission(url=url)
-    submission.comments.replace_more(limit=0)  # Remove 'MoreComments' objects
-    comments = [comment.body for comment in submission.comments.list()]
-    return submission.title, comments
+# Function to extract thread ID
+def extract_thread_id(url):
+    try:
+        parts = url.split("/")
+        thread_id = parts[6]
+        return thread_id
+    except IndexError:
+        return None
 
 
-def analyze_sentiment(text):
-    """Returns the sentiment scores for a given text."""
-    analyzer = SentimentIntensityAnalyzer()
-    return analyzer.polarity_scores(text)
-
-
-def analyze_comments(comments):
-    """Analyzes each comment and returns a list of sentiment scores."""
+# Sentiment Analysis Function
+def analyze_sentiment(comments):
     sentiments = []
     for comment in comments:
-        scores = analyze_sentiment(comment)
-        sentiments.append(scores)
-    return sentiments
+        blob = TextBlob(comment.body)
+        polarity = blob.sentiment.polarity
+        sentiments.append({"comment": comment.body, "sentiment": polarity})
+    return pd.DataFrame(sentiments)
 
 
-# --- Streamlit Frontend ---
-def main():
-    st.title("Reddit Thread Sentiment Analyzer")
-    st.markdown(
-        "Enter the URL of a Reddit thread below and the app will scrape the comments and analyze their sentiment.")
+# Scrape & Analyze Sentiment
+if url:
+    thread_id = extract_thread_id(url)
 
-    reddit_url = st.text_input("Reddit Thread URL", "")
-
-    if reddit_url:
+    if thread_id:
         try:
-            title, comments = fetch_reddit_thread(reddit_url)
-            st.subheader("Thread Title")
-            st.write(title)
-            st.write(f"**Comments Scraped:** {len(comments)}")
+            with st.spinner("Fetching comments and analyzing sentiment..."):
+                submission = reddit.submission(id=thread_id)
+                submission.comments.replace_more(limit=0)
+                comments = submission.comments.list()
 
-            # Perform sentiment analysis on the comments
-            sentiments = analyze_comments(comments)
-            df = pd.DataFrame(sentiments)
+                df = analyze_sentiment(comments)
 
-            st.subheader("Sentiment Scores for Comments")
-            st.dataframe(df)
+                # Display Data
+                st.subheader("📝 Top Comments with Sentiment")
+                st.dataframe(df.head(10))
 
-            # Compute average sentiment scores
-            avg_scores = df.mean()
-            st.subheader("Average Sentiment Scores")
-            st.write(avg_scores)
-            st.bar_chart(avg_scores)
+                # Plot Sentiment
+                st.subheader("📊 Sentiment Distribution")
+                fig, ax = plt.subplots(figsize=(8, 4))
+                sns.histplot(df["sentiment"], bins=20, kde=True, color="red", ax=ax)
+                ax.set_xlabel("Sentiment Score")
+                ax.set_ylabel("Frequency")
+                ax.set_title("Sentiment Analysis of Comments")
+                st.pyplot(fig)
+
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error(f"❌ An error occurred: {e}")
 
-
-if __name__ == "__main__":
-    main()
+    else:
+        st.warning("⚠️ Invalid Reddit URL. Please enter a valid thread URL.")
