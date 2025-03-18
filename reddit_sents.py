@@ -16,7 +16,7 @@ reddit = praw.Reddit(client_id='YOUR_CLIENT_ID',  # Replace with your client id
 
 # --- Functions for scraping and sentiment analysis ---
 def fetch_reddit_thread(url):
-    """Fetches the thread title and all comments from a Reddit thread URL."""
+    """Fetches the thread title and all comments from a Reddit thread URL.."""
     submission = reddit.submission(url=url)
     submission.comments.replace_more(limit=0)  # Remove 'MoreComments' objects
     comments = [comment.body for comment in submission.comments.list()]
