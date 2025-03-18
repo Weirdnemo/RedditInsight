@@ -57,5 +57,5 @@ streamlit run reddit_sents.py
 This project is open-source and available under the **MIT License**.
 
 ## 🛠️ Author
-Developed by **@yourusername** 🚀
+Developed by **@Weirdnemo** 🚀
 
