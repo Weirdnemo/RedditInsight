@@ -35,9 +35,9 @@ st.markdown(
 
 # Reddit API Authentication
 reddit = praw.Reddit(
-    client_id="YOUR_CLIENT_ID",
-    client_secret="YOUR_CLIENT_SECRET",
-    user_agent="RedditScraper/1.0 (by /u/yourusername)"
+    client_id="PX4BjrFMX5ixQ1IDS73Eeg",
+    client_secret="TNcR3UdwSFugluwOHgOO3tVeIr-15A",
+    user_agent="my-reddit-scraper", # Add your Reddit password
 )
 
 # App Title
