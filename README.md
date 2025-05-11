@@ -13,6 +13,24 @@ A powerful sentiment analysis tool for Reddit threads that provides detailed ins
 - **Dark/Light theme support**
 - **Data export capabilities**
 
+## 📸 Screenshots
+
+### Interactive Charts
+![Interactive Charts](screenshots/charts.png)
+*Dynamic sentiment analysis charts and emotion distribution*
+
+### Word Cloud Analysis
+![Word Cloud](screenshots/word_cloud.png)
+*Dynamic word cloud generation for comment analysis*
+
+### Comment Interactions
+![Comment Interactions](screenshots/comment_interactions.png)
+*Network visualization of comment interactions and relationships*
+
+### Statistics Dashboard
+![Statistics](screenshots/stats.png)
+*Comprehensive statistics and metrics dashboard*
+
 ## 🚀 Getting Started
 
 ### Prerequisites
