@@ -12,6 +12,30 @@ from datetime import datetime
 import re
 import json
 from io import StringIO
+import networkx as nx
+from collections import Counter
+import nltk
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import os
+
+# Download required NLTK data
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+try:
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('stopwords')
+try:
+    nltk.data.find('sentiment/vader_lexicon.zip')
+except LookupError:
+    nltk.download('vader_lexicon')
+
+# Initialize VADER sentiment analyzer
+vader = SentimentIntensityAnalyzer()
 
 # Function to clean text for word cloud
 def clean_text_for_wordcloud(text):
@@ -231,9 +255,9 @@ else:
 
 # Reddit API Authentication
 reddit = praw.Reddit(
-    client_id="PX4BjrFMX5ixQ1IDS73Eeg",
-    client_secret="TNcR3UdwSFugluwOHgOO3tVeIr-15A",
-    user_agent="my-reddit-scraper",
+    client_id=os.getenv("REDDIT_CLIENT_ID", "PX4BjrFMX5ixQ1IDS73Eeg"),
+    client_secret=os.getenv("REDDIT_CLIENT_SECRET", "TNcR3UdwSFugluwOHgOO3tVeIr-15A"),
+    user_agent=os.getenv("REDDIT_USER_AGENT", "my-reddit-scraper"),
 )
 
 # App Title with enhanced styling
@@ -276,21 +300,82 @@ def extract_thread_id(url):
     except IndexError:
         return None
 
-# Function to analyze sentiment with timestamps
+# Function to analyze emotions
+def analyze_emotions(text):
+    # Basic emotion keywords
+    emotions = {
+        'joy': ['happy', 'joy', 'excited', 'great', 'wonderful', 'amazing', 'love', 'loved', 'best'],
+        'sadness': ['sad', 'unhappy', 'depressed', 'miserable', 'terrible', 'awful', 'hate', 'hated', 'worst'],
+        'anger': ['angry', 'mad', 'furious', 'annoyed', 'irritated', 'rage', 'hate', 'hated'],
+        'fear': ['afraid', 'scared', 'frightened', 'terrified', 'anxious', 'worried', 'nervous'],
+        'surprise': ['surprised', 'shocked', 'amazed', 'astonished', 'unexpected']
+    }
+    
+    text = text.lower()
+    emotion_scores = {emotion: 0 for emotion in emotions}
+    
+    for emotion, keywords in emotions.items():
+        for keyword in keywords:
+            if keyword in text:
+                emotion_scores[emotion] += 1
+    
+    # Get the dominant emotion
+    if sum(emotion_scores.values()) > 0:
+        dominant_emotion = max(emotion_scores.items(), key=lambda x: x[1])[0]
+    else:
+        dominant_emotion = 'neutral'
+    
+    return emotion_scores, dominant_emotion
+
+# Function to analyze sentiment with enhanced features
 def analyze_sentiment(comments):
     sentiments = []
     for comment in comments:
+        # TextBlob analysis
         blob = TextBlob(comment.body)
         polarity = blob.sentiment.polarity
+        subjectivity = blob.sentiment.subjectivity
+        
+        # VADER analysis
+        vader_scores = vader.polarity_scores(comment.body)
+        
+        # Emotion analysis
+        emotion_scores, dominant_emotion = analyze_emotions(comment.body)
+        
         sentiments.append({
             "comment": comment.body,
             "sentiment": polarity,
+            "subjectivity": subjectivity,
+            "vader_compound": vader_scores['compound'],
+            "vader_pos": vader_scores['pos'],
+            "vader_neg": vader_scores['neg'],
+            "vader_neu": vader_scores['neu'],
+            "dominant_emotion": dominant_emotion,
+            "emotion_scores": emotion_scores,
             "created_utc": datetime.fromtimestamp(comment.created_utc),
             "score": comment.score,
             "author": str(comment.author),
             "length": len(comment.body)
         })
     return pd.DataFrame(sentiments)
+
+# Function to create comment network
+def create_comment_network(df):
+    G = nx.Graph()
+    
+    # Add nodes (authors)
+    authors = df['author'].unique()
+    for author in authors:
+        G.add_node(author)
+    
+    # Add edges based on similar sentiment and time proximity
+    for i in range(len(df)):
+        for j in range(i + 1, len(df)):
+            if (abs(df.iloc[i]['created_utc'] - df.iloc[j]['created_utc']).total_seconds() < 3600 and  # Within 1 hour
+                abs(df.iloc[i]['sentiment'] - df.iloc[j]['sentiment']) < 0.3):  # Similar sentiment
+                G.add_edge(df.iloc[i]['author'], df.iloc[j]['author'])
+    
+    return G
 
 # Scrape & Analyze Sentiment
 if url:
@@ -318,6 +403,9 @@ if url:
                 ])
 
                 with tab1:
+                    # Enhanced Sentiment Analysis
+                    st.markdown("### 📊 Advanced Sentiment Analysis")
+                    
                     # Sentiment Distribution with Plotly
                     fig_dist = px.histogram(
                         df,
@@ -334,7 +422,34 @@ if url:
                     )
                     st.plotly_chart(fig_dist, use_container_width=True)
 
-                    # Summary Statistics in a more visual way
+                    # Subjectivity vs Polarity Scatter Plot
+                    fig_subj = px.scatter(
+                        df,
+                        x="sentiment",
+                        y="subjectivity",
+                        color="dominant_emotion",
+                        title="Subjectivity vs Polarity by Emotion",
+                        size="score",
+                        hover_data=["comment"]
+                    )
+                    fig_subj.update_layout(
+                        template="plotly_dark" if theme == "Dark" else "plotly_white"
+                    )
+                    st.plotly_chart(fig_subj, use_container_width=True)
+
+                    # Emotion Distribution
+                    emotion_counts = df['dominant_emotion'].value_counts()
+                    fig_emotion = px.pie(
+                        values=emotion_counts.values,
+                        names=emotion_counts.index,
+                        title="Distribution of Emotions"
+                    )
+                    fig_emotion.update_layout(
+                        template="plotly_dark" if theme == "Dark" else "plotly_white"
+                    )
+                    st.plotly_chart(fig_emotion, use_container_width=True)
+
+                    # Summary Statistics
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         fig_avg = go.Figure(go.Indicator(
@@ -348,58 +463,133 @@ if url:
                         st.plotly_chart(fig_avg, use_container_width=True)
 
                     with col2:
-                        fig_max = go.Figure(go.Indicator(
-                            mode="number",
-                            value=df['sentiment'].max(),
-                            title={'text': "Most Positive"},
-                            number={'font': {'color': "#00ff00"}}
+                        fig_subj_avg = go.Figure(go.Indicator(
+                            mode="gauge+number",
+                            value=df['subjectivity'].mean(),
+                            title={'text': "Average Subjectivity"},
+                            gauge={'axis': {'range': [0, 1]},
+                                  'bar': {'color': "#4b7bff"}}
                         ))
-                        fig_max.update_layout(height=200)
-                        st.plotly_chart(fig_max, use_container_width=True)
+                        fig_subj_avg.update_layout(height=200)
+                        st.plotly_chart(fig_subj_avg, use_container_width=True)
 
                     with col3:
-                        fig_min = go.Figure(go.Indicator(
-                            mode="number",
-                            value=df['sentiment'].min(),
-                            title={'text': "Most Negative"},
-                            number={'font': {'color': "#ff0000"}}
+                        fig_vader = go.Figure(go.Indicator(
+                            mode="gauge+number",
+                            value=df['vader_compound'].mean(),
+                            title={'text': "VADER Sentiment"},
+                            gauge={'axis': {'range': [-1, 1]},
+                                  'bar': {'color': "#4bff4b"}}
                         ))
-                        fig_min.update_layout(height=200)
-                        st.plotly_chart(fig_min, use_container_width=True)
+                        fig_vader.update_layout(height=200)
+                        st.plotly_chart(fig_vader, use_container_width=True)
 
                 with tab2:
-                    # Sentiment Timeline
-                    df['hour'] = df['created_utc'].dt.hour
-                    timeline_data = df.groupby('hour')['sentiment'].mean().reset_index()
+                    # Enhanced Timeline Analysis
+                    st.markdown("### 📈 Advanced Timeline Analysis")
                     
-                    fig_timeline = px.line(
-                        timeline_data,
-                        x='hour',
-                        y='sentiment',
-                        title='Sentiment Trend Over Time',
-                        markers=True
+                    # Create time-based features
+                    df['hour'] = df['created_utc'].dt.hour
+                    df['day'] = df['created_utc'].dt.day_name()
+                    
+                    # Sentiment Heatmap
+                    pivot_data = df.pivot_table(
+                        values='sentiment',
+                        index='day',
+                        columns='hour',
+                        aggfunc='mean'
                     )
-                    fig_timeline.update_layout(
-                        template="plotly_dark" if theme == "Dark" else "plotly_white",
-                        xaxis_title="Hour of Day",
-                        yaxis_title="Average Sentiment",
-                        showlegend=False
-                    )
-                    st.plotly_chart(fig_timeline, use_container_width=True)
-
-                    # Sentiment vs Score Scatter Plot
-                    fig_scatter = px.scatter(
-                        df,
-                        x='sentiment',
-                        y='score',
-                        color='sentiment',
-                        title='Comment Score vs Sentiment',
+                    
+                    fig_heatmap = px.imshow(
+                        pivot_data,
+                        title="Sentiment Heatmap by Day and Hour",
                         color_continuous_scale='RdBu'
                     )
-                    fig_scatter.update_layout(
-                        template="plotly_dark" if theme == "Dark" else "plotly_white"
+                    fig_heatmap.update_layout(
+                        template="plotly_dark" if theme == "Dark" else "plotly_white",
+                        xaxis_title="Hour of Day",
+                        yaxis_title="Day of Week"
                     )
-                    st.plotly_chart(fig_scatter, use_container_width=True)
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+                    
+                    # Emotion Timeline
+                    emotion_timeline = df.groupby('hour')['dominant_emotion'].apply(
+                        lambda x: x.value_counts().index[0]
+                    ).reset_index()
+                    
+                    fig_emotion_timeline = px.line(
+                        emotion_timeline,
+                        x='hour',
+                        y='dominant_emotion',
+                        title='Dominant Emotion Over Time',
+                        markers=True
+                    )
+                    fig_emotion_timeline.update_layout(
+                        template="plotly_dark" if theme == "Dark" else "plotly_white",
+                        xaxis_title="Hour of Day",
+                        yaxis_title="Dominant Emotion"
+                    )
+                    st.plotly_chart(fig_emotion_timeline, use_container_width=True)
+
+                    # Comment Network
+                    st.markdown("### 🤝 Comment Interaction Network")
+                    G = create_comment_network(df)
+                    
+                    # Create network visualization
+                    pos = nx.spring_layout(G)
+                    fig_network = go.Figure()
+                    
+                    # Add edges
+                    edge_x = []
+                    edge_y = []
+                    for edge in G.edges():
+                        x0, y0 = pos[edge[0]]
+                        x1, y1 = pos[edge[1]]
+                        edge_x.extend([x0, x1, None])
+                        edge_y.extend([y0, y1, None])
+                    
+                    fig_network.add_trace(go.Scatter(
+                        x=edge_x, y=edge_y,
+                        line=dict(width=0.5, color='#888'),
+                        hoverinfo='none',
+                        mode='lines'
+                    ))
+                    
+                    # Add nodes
+                    node_x = []
+                    node_y = []
+                    node_text = []
+                    for node in G.nodes():
+                        x, y = pos[node]
+                        node_x.append(x)
+                        node_y.append(y)
+                        node_text.append(node)
+                    
+                    fig_network.add_trace(go.Scatter(
+                        x=node_x, y=node_y,
+                        mode='markers',
+                        hoverinfo='text',
+                        text=node_text,
+                        marker=dict(
+                            showscale=True,
+                            colorscale='YlOrRd',
+                            size=10,
+                            colorbar=dict(
+                                thickness=15,
+                                title='Node Connections',
+                                xanchor='left'
+                            )
+                        )
+                    ))
+                    
+                    fig_network.update_layout(
+                        title='Comment Interaction Network',
+                        template="plotly_dark" if theme == "Dark" else "plotly_white",
+                        showlegend=False,
+                        hovermode='closest',
+                        margin=dict(b=20,l=5,r=5,t=40)
+                    )
+                    st.plotly_chart(fig_network, use_container_width=True)
 
                 with tab3:
                     # Generate and display word cloud

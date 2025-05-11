@@ -1,23 +1,17 @@
 # 📊 Sentilytics for Reddit
 
-A powerful sentiment analysis tool for Reddit threads that provides real-time insights into comment sentiments using natural language processing and interactive visualizations.
+A powerful sentiment analysis tool for Reddit threads that provides detailed insights into comment sentiment, emotions, and interactions.
 
 ## ✨ Features
 
-- **Real-time Sentiment Analysis**: Analyze the sentiment of any Reddit thread's comments
-- **Interactive Visualizations**:
-  - Sentiment distribution charts
-  - Timeline analysis
-  - Word clouds for positive and negative comments
-  - Interactive comment explorer
-- **Advanced Text Processing**:
-  - Clean text analysis
-  - Removal of common words and technical artifacts
-  - Sentiment categorization
-- **User-friendly Interface**:
-  - Modern dark theme
-  - Responsive design
-  - Easy-to-use input system
+- **Advanced sentiment analysis using TextBlob and VADER**
+- **Emotion detection and analysis**
+- **Interactive visualizations with Plotly**
+- **Comment interaction network analysis**
+- **Time-based sentiment analysis**
+- **Word cloud generation**
+- **Dark/Light theme support**
+- **Data export capabilities**
 
 ## 🚀 Getting Started
 
@@ -127,4 +121,52 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 - Reddit API for providing access to thread data
 - All the amazing open-source libraries that made this project possible
+
+## 🚀 Deployment to Vercel
+
+1. Install Vercel CLI:
+```bash
+npm install -g vercel
+```
+
+2. Login to Vercel:
+```bash
+vercel login
+```
+
+3. Deploy the application:
+```bash
+vercel
+```
+
+4. For production deployment:
+```bash
+vercel --prod
+```
+
+## 📝 Environment Variables
+
+The following environment variables need to be set in your Vercel project settings:
+
+- `REDDIT_CLIENT_ID`: Your Reddit API client ID
+- `REDDIT_CLIENT_SECRET`: Your Reddit API client secret
+- `REDDIT_USER_AGENT`: Your Reddit API user agent
+
+## 📝 Local Development
+
+1. Create a virtual environment:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+```
+
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+3. Run the application:
+```bash
+streamlit run reddit_sents.py
+```
 
