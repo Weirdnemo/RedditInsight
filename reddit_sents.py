@@ -9,6 +9,20 @@ import plotly.graph_objects as go
 from wordcloud import WordCloud
 import numpy as np
 from datetime import datetime
+import re
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+
+# Download required NLTK data
+try:
+    nltk.data.find('tokenizers/punkt')
+    nltk.data.find('corpora/stopwords')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('stopwords')
+    nltk.download('averaged_perceptron_tagger')  # Required for TextBlob
+    nltk.download('wordnet')  # Required for TextBlob
 
 # Streamlit Page Config
 st.set_page_config(
@@ -152,15 +166,47 @@ def analyze_sentiment(comments):
         })
     return pd.DataFrame(sentiments)
 
-# Function to generate word cloud
+# Function to clean text for word cloud
+def clean_text_for_wordcloud(text):
+    # Convert to lowercase
+    text = text.lower()
+    
+    # Remove URLs
+    text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
+    
+    # Remove special characters and numbers
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\d+', '', text)
+    
+    # Remove extra whitespace
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # Tokenize and remove stopwords
+    stop_words = set(stopwords.words('english'))
+    # Add custom stopwords
+    custom_stopwords = {'http', 'https', 'www', 'com', 'org', 'net', 'imgur', 'jpg', 'png', 'gif', 'webp', 'amp', 'reddit', 'redd', 'edit', 'deleted', 'removed'}
+    stop_words.update(custom_stopwords)
+    
+    tokens = word_tokenize(text)
+    filtered_tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
+    
+    return ' '.join(filtered_tokens)
+
+# Function to generate word cloud with cleaned text
 def generate_wordcloud(text):
+    # Clean the text
+    cleaned_text = clean_text_for_wordcloud(text)
+    
     wordcloud = WordCloud(
         background_color='#0e1117',
         colormap='Reds',
         width=800,
         height=400,
-        max_words=100
-    ).generate(text)
+        max_words=100,
+        min_font_size=10,
+        max_font_size=100,
+        random_state=42
+    ).generate(cleaned_text)
     return wordcloud
 
 # Scrape & Analyze Sentiment
@@ -263,6 +309,9 @@ if url:
 
                 with tab3:
                     # Generate and display word cloud
+                    st.markdown("### ☁️ Word Cloud Analysis")
+                    st.markdown("Most common words in the comments (excluding common words, URLs, and special characters)")
+                    
                     all_text = ' '.join(df['comment'].astype(str))
                     wordcloud = generate_wordcloud(all_text)
                     
@@ -273,25 +322,35 @@ if url:
 
                     # Top words by sentiment
                     st.markdown("### 🔝 Most Common Words by Sentiment")
-                    positive_words = ' '.join(df[df['sentiment'] > 0]['comment'].astype(str))
-                    negative_words = ' '.join(df[df['sentiment'] < 0]['comment'].astype(str))
+                    
+                    # Get positive and negative comments
+                    positive_comments = df[df['sentiment'] > 0.3]['comment'].astype(str)
+                    negative_comments = df[df['sentiment'] < -0.3]['comment'].astype(str)
                     
                     col1, col2 = st.columns(2)
                     with col1:
                         st.markdown("#### Positive Comments")
-                        wordcloud_pos = generate_wordcloud(positive_words)
-                        fig_pos, ax = plt.subplots(figsize=(5, 3))
-                        ax.imshow(wordcloud_pos, interpolation='bilinear')
-                        ax.axis('off')
-                        st.pyplot(fig_pos)
+                        if not positive_comments.empty:
+                            positive_words = ' '.join(positive_comments)
+                            wordcloud_pos = generate_wordcloud(positive_words)
+                            fig_pos, ax = plt.subplots(figsize=(5, 3))
+                            ax.imshow(wordcloud_pos, interpolation='bilinear')
+                            ax.axis('off')
+                            st.pyplot(fig_pos)
+                        else:
+                            st.info("No strongly positive comments found")
                     
                     with col2:
                         st.markdown("#### Negative Comments")
-                        wordcloud_neg = generate_wordcloud(negative_words)
-                        fig_neg, ax = plt.subplots(figsize=(5, 3))
-                        ax.imshow(wordcloud_neg, interpolation='bilinear')
-                        ax.axis('off')
-                        st.pyplot(fig_neg)
+                        if not negative_comments.empty:
+                            negative_words = ' '.join(negative_comments)
+                            wordcloud_neg = generate_wordcloud(negative_words)
+                            fig_neg, ax = plt.subplots(figsize=(5, 3))
+                            ax.imshow(wordcloud_neg, interpolation='bilinear')
+                            ax.axis('off')
+                            st.pyplot(fig_neg)
+                        else:
+                            st.info("No strongly negative comments found")
 
                 with tab4:
                     # Interactive comments table with sentiment coloring
