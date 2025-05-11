@@ -1,1 +1,0 @@
-web: streamlit run reddit_sents.py 
