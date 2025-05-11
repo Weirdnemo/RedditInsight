@@ -10,27 +10,6 @@ from wordcloud import WordCloud
 import numpy as np
 from datetime import datetime
 import re
-import nltk
-from nltk.corpus import stopwords
-from nltk.tokenize import word_tokenize
-
-# Download required NLTK data
-def download_nltk_data():
-    resources = [
-        'punkt',
-        'stopwords',
-        'averaged_perceptron_tagger',
-        'wordnet',
-        'omw-1.4'  # Open Multilingual Wordnet
-    ]
-    for resource in resources:
-        try:
-            nltk.data.find(f'tokenizers/{resource}' if resource == 'punkt' else f'corpora/{resource}')
-        except LookupError:
-            nltk.download(resource)
-
-# Download NLTK data
-download_nltk_data()
 
 # Streamlit Page Config
 st.set_page_config(
@@ -189,18 +168,14 @@ def clean_text_for_wordcloud(text):
     # Remove extra whitespace
     text = re.sub(r'\s+', ' ', text).strip()
     
-    # Tokenize and remove stopwords
-    stop_words = set(stopwords.words('english'))
-    # Add custom stopwords
-    custom_stopwords = {'http', 'https', 'www', 'com', 'org', 'net', 'imgur', 'jpg', 'png', 'gif', 'webp', 'amp', 'reddit', 'redd', 'edit', 'deleted', 'removed'}
-    stop_words.update(custom_stopwords)
+    # Remove common words and short words
+    common_words = {'http', 'https', 'www', 'com', 'org', 'net', 'imgur', 'jpg', 'png', 'gif', 'webp', 'amp', 'reddit', 'redd', 'edit', 'deleted', 'removed', 'the', 'and', 'that', 'this', 'but', 'they', 'have', 'from', 'what', 'when', 'where', 'which', 'who', 'why', 'how', 'all', 'any', 'both', 'each', 'few', 'more', 'most', 'other', 'some', 'such', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now'}
+    words = text.split()
+    filtered_words = [word for word in words if word not in common_words and len(word) > 2]
     
-    tokens = word_tokenize(text)
-    filtered_tokens = [word for word in tokens if word not in stop_words and len(word) > 2]
-    
-    return ' '.join(filtered_tokens)
+    return ' '.join(filtered_words)
 
-# Function to generate word cloud with cleaned text
+# Function to generate word cloud
 def generate_wordcloud(text):
     # Clean the text
     cleaned_text = clean_text_for_wordcloud(text)

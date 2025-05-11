@@ -45,22 +45,6 @@ source .venv/bin/activate  # On Windows, use `.venv\Scripts\activate`
 pip install -r requirements.txt
 ```
 
-4. Download required NLTK data (this will happen automatically on first run, but you can also do it manually):
-```python
-import nltk
-nltk.download('punkt')
-nltk.download('stopwords')
-nltk.download('averaged_perceptron_tagger')
-nltk.download('wordnet')
-nltk.download('omw-1.4')
-```
-
-Note: If you encounter any NLTK data download issues, you can try downloading all NLTK data (this will take more space but ensures all required resources are available):
-```python
-import nltk
-nltk.download('all')
-```
-
 ### Configuration
 
 1. Get your Reddit API credentials:

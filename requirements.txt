@@ -7,4 +7,3 @@ pandas
 plotly
 wordcloud
 numpy
-nltk
