@@ -15,14 +15,22 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
 # Download required NLTK data
-try:
-    nltk.data.find('tokenizers/punkt')
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('punkt')
-    nltk.download('stopwords')
-    nltk.download('averaged_perceptron_tagger')  # Required for TextBlob
-    nltk.download('wordnet')  # Required for TextBlob
+def download_nltk_data():
+    resources = [
+        'punkt',
+        'stopwords',
+        'averaged_perceptron_tagger',
+        'wordnet',
+        'omw-1.4'  # Open Multilingual Wordnet
+    ]
+    for resource in resources:
+        try:
+            nltk.data.find(f'tokenizers/{resource}' if resource == 'punkt' else f'corpora/{resource}')
+        except LookupError:
+            nltk.download(resource)
+
+# Download NLTK data
+download_nltk_data()
 
 # Streamlit Page Config
 st.set_page_config(
