@@ -4,3 +4,6 @@ textblob
 matplotlib
 seaborn
 pandas
+plotly
+wordcloud
+numpy

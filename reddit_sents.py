@@ -4,6 +4,11 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 from textblob import TextBlob
+import plotly.express as px
+import plotly.graph_objects as go
+from wordcloud import WordCloud
+import numpy as np
+from datetime import datetime
 
 # Streamlit Page Config
 st.set_page_config(
@@ -132,15 +137,31 @@ def extract_thread_id(url):
         return None
 
 
-# Sentiment Analysis Function
+# Function to analyze sentiment with timestamps
 def analyze_sentiment(comments):
     sentiments = []
     for comment in comments:
         blob = TextBlob(comment.body)
         polarity = blob.sentiment.polarity
-        sentiments.append({"comment": comment.body, "sentiment": polarity})
+        sentiments.append({
+            "comment": comment.body,
+            "sentiment": polarity,
+            "created_utc": datetime.fromtimestamp(comment.created_utc),
+            "score": comment.score,
+            "author": str(comment.author)
+        })
     return pd.DataFrame(sentiments)
 
+# Function to generate word cloud
+def generate_wordcloud(text):
+    wordcloud = WordCloud(
+        background_color='#0e1117',
+        colormap='Reds',
+        width=800,
+        height=400,
+        max_words=100
+    ).generate(text)
+    return wordcloud
 
 # Scrape & Analyze Sentiment
 if url:
@@ -155,39 +176,142 @@ if url:
 
                 df = analyze_sentiment(comments)
 
-                # Create two columns for results
-                col1, col2 = st.columns(2)
+                # Create tabs for different visualizations
+                tab1, tab2, tab3, tab4 = st.tabs(["📊 Sentiment Analysis", "📈 Timeline", "☁️ Word Cloud", "📝 Comments"])
 
-                with col1:
-                    # Display Data with enhanced styling
-                    st.markdown("### 📝 Top Comments with Sentiment")
+                with tab1:
+                    # Sentiment Distribution with Plotly
+                    fig_dist = px.histogram(
+                        df,
+                        x="sentiment",
+                        nbins=30,
+                        color_discrete_sequence=['#ff4b4b'],
+                        title="Sentiment Distribution of Comments"
+                    )
+                    fig_dist.update_layout(
+                        template="plotly_dark",
+                        showlegend=False,
+                        xaxis_title="Sentiment Score",
+                        yaxis_title="Number of Comments"
+                    )
+                    st.plotly_chart(fig_dist, use_container_width=True)
+
+                    # Summary Statistics in a more visual way
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        fig_avg = go.Figure(go.Indicator(
+                            mode="gauge+number",
+                            value=df['sentiment'].mean(),
+                            title={'text': "Average Sentiment"},
+                            gauge={'axis': {'range': [-1, 1]},
+                                  'bar': {'color': "#ff4b4b"}}
+                        ))
+                        fig_avg.update_layout(height=200)
+                        st.plotly_chart(fig_avg, use_container_width=True)
+
+                    with col2:
+                        fig_max = go.Figure(go.Indicator(
+                            mode="number",
+                            value=df['sentiment'].max(),
+                            title={'text': "Most Positive"},
+                            number={'font': {'color': "#00ff00"}}
+                        ))
+                        fig_max.update_layout(height=200)
+                        st.plotly_chart(fig_max, use_container_width=True)
+
+                    with col3:
+                        fig_min = go.Figure(go.Indicator(
+                            mode="number",
+                            value=df['sentiment'].min(),
+                            title={'text': "Most Negative"},
+                            number={'font': {'color': "#ff0000"}}
+                        ))
+                        fig_min.update_layout(height=200)
+                        st.plotly_chart(fig_min, use_container_width=True)
+
+                with tab2:
+                    # Sentiment Timeline
+                    df['hour'] = df['created_utc'].dt.hour
+                    timeline_data = df.groupby('hour')['sentiment'].mean().reset_index()
+                    
+                    fig_timeline = px.line(
+                        timeline_data,
+                        x='hour',
+                        y='sentiment',
+                        title='Sentiment Trend Over Time',
+                        markers=True
+                    )
+                    fig_timeline.update_layout(
+                        template="plotly_dark",
+                        xaxis_title="Hour of Day",
+                        yaxis_title="Average Sentiment",
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_timeline, use_container_width=True)
+
+                    # Sentiment vs Score Scatter Plot
+                    fig_scatter = px.scatter(
+                        df,
+                        x='sentiment',
+                        y='score',
+                        color='sentiment',
+                        title='Comment Score vs Sentiment',
+                        color_continuous_scale='RdBu'
+                    )
+                    fig_scatter.update_layout(template="plotly_dark")
+                    st.plotly_chart(fig_scatter, use_container_width=True)
+
+                with tab3:
+                    # Generate and display word cloud
+                    all_text = ' '.join(df['comment'].astype(str))
+                    wordcloud = generate_wordcloud(all_text)
+                    
+                    fig_wc, ax = plt.subplots(figsize=(10, 5))
+                    ax.imshow(wordcloud, interpolation='bilinear')
+                    ax.axis('off')
+                    st.pyplot(fig_wc)
+
+                    # Top words by sentiment
+                    st.markdown("### 🔝 Most Common Words by Sentiment")
+                    positive_words = ' '.join(df[df['sentiment'] > 0]['comment'].astype(str))
+                    negative_words = ' '.join(df[df['sentiment'] < 0]['comment'].astype(str))
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("#### Positive Comments")
+                        wordcloud_pos = generate_wordcloud(positive_words)
+                        fig_pos, ax = plt.subplots(figsize=(5, 3))
+                        ax.imshow(wordcloud_pos, interpolation='bilinear')
+                        ax.axis('off')
+                        st.pyplot(fig_pos)
+                    
+                    with col2:
+                        st.markdown("#### Negative Comments")
+                        wordcloud_neg = generate_wordcloud(negative_words)
+                        fig_neg, ax = plt.subplots(figsize=(5, 3))
+                        ax.imshow(wordcloud_neg, interpolation='bilinear')
+                        ax.axis('off')
+                        st.pyplot(fig_neg)
+
+                with tab4:
+                    # Interactive comments table with sentiment coloring
+                    st.markdown("### 📝 Comments Analysis")
+                    
+                    # Add sentiment category
+                    df['sentiment_category'] = pd.cut(
+                        df['sentiment'],
+                        bins=[-1, -0.3, 0.3, 1],
+                        labels=['Negative', 'Neutral', 'Positive']
+                    )
+                    
+                    # Display interactive dataframe
                     st.dataframe(
-                        df.head(10),
+                        df[['comment', 'sentiment', 'sentiment_category', 'score', 'author']]
+                        .sort_values('score', ascending=False)
+                        .head(20),
                         use_container_width=True,
                         height=400
                     )
-
-                with col2:
-                    # Plot Sentiment with enhanced styling
-                    st.markdown("### 📊 Sentiment Distribution")
-                    fig, ax = plt.subplots(figsize=(8, 4))
-                    sns.set_style("darkgrid")
-                    sns.histplot(df["sentiment"], bins=20, kde=True, color="#ff4b4b", ax=ax)
-                    ax.set_xlabel("Sentiment Score")
-                    ax.set_ylabel("Frequency")
-                    ax.set_title("Sentiment Analysis of Comments")
-                    plt.xticks(rotation=45)
-                    st.pyplot(fig)
-
-                # Add summary statistics
-                st.markdown("### 📈 Summary Statistics")
-                col1, col2, col3 = st.columns(3)
-                with col1:
-                    st.metric("Average Sentiment", f"{df['sentiment'].mean():.2f}")
-                with col2:
-                    st.metric("Most Positive", f"{df['sentiment'].max():.2f}")
-                with col3:
-                    st.metric("Most Negative", f"{df['sentiment'].min():.2f}")
 
         except Exception as e:
             st.error(f"❌ An error occurred: {e}")
