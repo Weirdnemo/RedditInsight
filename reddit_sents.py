@@ -19,6 +19,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 import os
+import time
 
 # Download required NLTK data
 try:
@@ -38,6 +39,7 @@ except LookupError:
 vader = SentimentIntensityAnalyzer()
 
 # Function to clean text for word cloud
+@st.cache_data
 def clean_text_for_wordcloud(text):
     # Convert to lowercase
     text = text.lower()
@@ -60,6 +62,7 @@ def clean_text_for_wordcloud(text):
     return ' '.join(filtered_words)
 
 # Function to generate word cloud
+@st.cache_data
 def generate_wordcloud(text):
     # Clean the text
     cleaned_text = clean_text_for_wordcloud(text)
@@ -77,6 +80,7 @@ def generate_wordcloud(text):
     return wordcloud
 
 # Function to export data
+@st.cache_data
 def export_data(df, format='csv'):
     if format == 'csv':
         return df.to_csv(index=False)
@@ -254,11 +258,48 @@ else:
     )
 
 # Reddit API Authentication
-reddit = praw.Reddit(
-    client_id=os.getenv("REDDIT_CLIENT_ID", "PX4BjrFMX5ixQ1IDS73Eeg"),
-    client_secret=os.getenv("REDDIT_CLIENT_SECRET", "TNcR3UdwSFugluwOHgOO3tVeIr-15A"),
-    user_agent=os.getenv("REDDIT_USER_AGENT", "my-reddit-scraper"),
-)
+try:
+    reddit = praw.Reddit(
+        client_id=os.getenv("REDDIT_CLIENT_ID", "PX4BjrFMX5ixQ1IDS73Eeg"),
+        client_secret=os.getenv("REDDIT_CLIENT_SECRET", "TNcR3UdwSFugluwOHgOO3tVeIr-15A"),
+        user_agent=os.getenv("REDDIT_USER_AGENT", "my-reddit-scraper"),
+    )
+    # Test API connection
+    reddit.user.me()
+except Exception as e:
+    st.error("❌ Error connecting to Reddit API. Please check your credentials and try again.")
+    st.stop()
+
+# Function to handle API rate limits
+def handle_rate_limit(func):
+    def wrapper(*args, **kwargs):
+        max_retries = 3
+        retry_delay = 2  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if "429" in str(e):  # Rate limit error
+                    if attempt < max_retries - 1:
+                        st.warning(f"⚠️ Rate limit reached. Retrying in {retry_delay} seconds...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        st.error("❌ Rate limit exceeded. Please try again later.")
+                        st.stop()
+                else:
+                    raise e
+    return wrapper
+
+@handle_rate_limit
+def fetch_submission(thread_id):
+    return reddit.submission(id=thread_id)
+
+@handle_rate_limit
+def fetch_comments(submission):
+    submission.comments.replace_more(limit=0)
+    return submission.comments.list()
 
 # App Title with enhanced styling
 st.markdown(
@@ -301,6 +342,7 @@ def extract_thread_id(url):
         return None
 
 # Function to analyze emotions
+@st.cache_data
 def analyze_emotions(text):
     # Basic emotion keywords
     emotions = {
@@ -328,6 +370,7 @@ def analyze_emotions(text):
     return emotion_scores, dominant_emotion
 
 # Function to analyze sentiment with enhanced features
+@st.cache_data
 def analyze_sentiment(comments):
     sentiments = []
     for comment in comments:
@@ -360,6 +403,7 @@ def analyze_sentiment(comments):
     return pd.DataFrame(sentiments)
 
 # Function to create comment network
+@st.cache_data
 def create_comment_network(df):
     G = nx.Graph()
     
@@ -384,14 +428,23 @@ if url:
     if thread_id:
         try:
             with st.spinner("🔍 Fetching comments and analyzing sentiment..."):
-                submission = reddit.submission(id=thread_id)
-                submission.comments.replace_more(limit=0)
-                comments = submission.comments.list()
+                # Add progress bar
+                progress_bar = st.progress(0)
+                
+                # Fetch submission with rate limit handling
+                submission = fetch_submission(thread_id)
+                progress_bar.progress(20)
+                
+                # Get comments with rate limit handling
+                comments = fetch_comments(submission)
+                progress_bar.progress(60)
 
                 if len(comments) < min_comments:
                     st.warning(f"⚠️ This thread has fewer comments than the minimum threshold ({min_comments}). Analysis might not be representative.")
                 
+                # Analyze sentiment
                 df = analyze_sentiment(comments)
+                progress_bar.progress(80)
 
                 # Create tabs for different visualizations
                 tab1, tab2, tab3, tab4, tab5 = st.tabs([
@@ -401,53 +454,65 @@ if url:
                     "📝 Comments",
                     "📈 Statistics"
                 ])
+                
+                progress_bar.progress(100)
+                st.success("✅ Analysis complete!")
 
                 with tab1:
                     # Enhanced Sentiment Analysis
                     st.markdown("### 📊 Advanced Sentiment Analysis")
                     
-                    # Sentiment Distribution with Plotly
-                    fig_dist = px.histogram(
-                        df,
-                        x="sentiment",
-                        nbins=30,
-                        color_discrete_sequence=['#ff4b4b'],
-                        title="Sentiment Distribution of Comments"
-                    )
-                    fig_dist.update_layout(
-                        template="plotly_dark" if theme == "Dark" else "plotly_white",
-                        showlegend=False,
-                        xaxis_title="Sentiment Score",
-                        yaxis_title="Number of Comments"
-                    )
-                    st.plotly_chart(fig_dist, use_container_width=True)
+                    try:
+                        # Sentiment Distribution with Plotly
+                        fig_dist = px.histogram(
+                            df,
+                            x="sentiment",
+                            nbins=30,
+                            color_discrete_sequence=['#ff4b4b'],
+                            title="Sentiment Distribution of Comments"
+                        )
+                        fig_dist.update_layout(
+                            template="plotly_dark" if theme == "Dark" else "plotly_white",
+                            showlegend=False,
+                            xaxis_title="Sentiment Score",
+                            yaxis_title="Number of Comments"
+                        )
+                        st.plotly_chart(fig_dist, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error creating sentiment distribution: {str(e)}")
 
-                    # Subjectivity vs Polarity Scatter Plot
-                    fig_subj = px.scatter(
-                        df,
-                        x="sentiment",
-                        y="subjectivity",
-                        color="dominant_emotion",
-                        title="Subjectivity vs Polarity by Emotion",
-                        size="score",
-                        hover_data=["comment"]
-                    )
-                    fig_subj.update_layout(
-                        template="plotly_dark" if theme == "Dark" else "plotly_white"
-                    )
-                    st.plotly_chart(fig_subj, use_container_width=True)
+                    try:
+                        # Subjectivity vs Polarity Scatter Plot
+                        fig_subj = px.scatter(
+                            df,
+                            x="sentiment",
+                            y="subjectivity",
+                            color="dominant_emotion",
+                            title="Subjectivity vs Polarity by Emotion",
+                            size="score",
+                            hover_data=["comment"]
+                        )
+                        fig_subj.update_layout(
+                            template="plotly_dark" if theme == "Dark" else "plotly_white"
+                        )
+                        st.plotly_chart(fig_subj, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error creating scatter plot: {str(e)}")
 
-                    # Emotion Distribution
-                    emotion_counts = df['dominant_emotion'].value_counts()
-                    fig_emotion = px.pie(
-                        values=emotion_counts.values,
-                        names=emotion_counts.index,
-                        title="Distribution of Emotions"
-                    )
-                    fig_emotion.update_layout(
-                        template="plotly_dark" if theme == "Dark" else "plotly_white"
-                    )
-                    st.plotly_chart(fig_emotion, use_container_width=True)
+                    try:
+                        # Emotion Distribution
+                        emotion_counts = df['dominant_emotion'].value_counts()
+                        fig_emotion = px.pie(
+                            values=emotion_counts.values,
+                            names=emotion_counts.index,
+                            title="Distribution of Emotions"
+                        )
+                        fig_emotion.update_layout(
+                            template="plotly_dark" if theme == "Dark" else "plotly_white"
+                        )
+                        st.plotly_chart(fig_emotion, use_container_width=True)
+                    except Exception as e:
+                        st.error(f"Error creating emotion distribution: {str(e)}")
 
                     # Summary Statistics
                     col1, col2, col3 = st.columns(3)
