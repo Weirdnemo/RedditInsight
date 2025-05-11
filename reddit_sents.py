@@ -89,7 +89,7 @@ def export_data(df, format='csv'):
 
 # Streamlit Page Config
 st.set_page_config(
-    page_title="Sentilytics for reddit",
+    page_title="RedditInsight",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -264,8 +264,8 @@ reddit = praw.Reddit(
 st.markdown(
     """
     <div style='text-align: center; padding: 2rem 0;'>
-        <h1 style='font-size: 3rem; margin-bottom: 1rem;'>📊 Sentilytics for reddit</h1>
-        <p style='font-size: 1.2rem; color: #888;'>Analyze the sentiment of Reddit threads in real-time</p>
+        <h1 style='font-size: 3rem; margin-bottom: 1rem;'>📊 RedditInsight</h1>
+        <p style='font-size: 1.2rem; color: #888;'>Deep dive into Reddit discussions with advanced sentiment analysis</p>
     </div>
     """,
     unsafe_allow_html=True

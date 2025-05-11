@@ -1,4 +1,4 @@
-# 📊 Sentilytics for Reddit
+# RedditInsight
 
 A powerful sentiment analysis tool for Reddit threads that provides detailed insights into comment sentiment, emotions, and interactions.
 
@@ -122,35 +122,33 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - Reddit API for providing access to thread data
 - All the amazing open-source libraries that made this project possible
 
-## 🚀 Deployment to Vercel
+## 🚀 Deployment to Streamlit Cloud
 
-1. Install Vercel CLI:
+1. Create a GitHub repository and push your code:
 ```bash
-npm install -g vercel
+git init
+git add .
+git commit -m "Initial commit"
+git remote add origin <your-github-repo-url>
+git push -u origin main
 ```
 
-2. Login to Vercel:
-```bash
-vercel login
+2. Go to [Streamlit Cloud](https://streamlit.io/cloud)
+
+3. Sign in with your GitHub account
+
+4. Click "New app"
+
+5. Select your repository, branch, and main file (reddit_sents.py)
+
+6. Add your secrets in the "Secrets" section:
+```toml
+REDDIT_CLIENT_ID = "your_client_id"
+REDDIT_CLIENT_SECRET = "your_client_secret"
+REDDIT_USER_AGENT = "my-reddit-scraper"
 ```
 
-3. Deploy the application:
-```bash
-vercel
-```
-
-4. For production deployment:
-```bash
-vercel --prod
-```
-
-## 📝 Environment Variables
-
-The following environment variables need to be set in your Vercel project settings:
-
-- `REDDIT_CLIENT_ID`: Your Reddit API client ID
-- `REDDIT_CLIENT_SECRET`: Your Reddit API client secret
-- `REDDIT_USER_AGENT`: Your Reddit API user agent
+7. Click "Deploy"
 
 ## 📝 Local Development
 
@@ -169,4 +167,12 @@ pip install -r requirements.txt
 ```bash
 streamlit run reddit_sents.py
 ```
+
+## 📝 Environment Variables
+
+The following environment variables need to be set in your Streamlit Cloud secrets:
+
+- `REDDIT_CLIENT_ID`: Your Reddit API client ID
+- `REDDIT_CLIENT_SECRET`: Your Reddit API client secret
+- `REDDIT_USER_AGENT`: Your Reddit API user agent
 
