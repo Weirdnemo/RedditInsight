@@ -42,8 +42,8 @@ A powerful sentiment analysis tool for Reddit threads that provides detailed ins
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/reddit-sents.git
-cd reddit-sents
+gh repo clone Weirdnemo/RedditInsight
+cd RedditInsight
 ```
 
 2. Create a virtual environment and activate it:
