@@ -371,9 +371,15 @@ def analyze_emotions(text):
 
 # Function to analyze sentiment with enhanced features
 @st.cache_data
-def analyze_sentiment(comments):
+def analyze_sentiment(_comments):
+    """
+    Analyze sentiment for a list of Reddit comments.
+    
+    Args:
+        _comments: List of Reddit comment objects (not cached)
+    """
     sentiments = []
-    for comment in comments:
+    for comment in _comments:
         # TextBlob analysis
         blob = TextBlob(comment.body)
         polarity = blob.sentiment.polarity
