@@ -41,4 +41,10 @@ Thumbs.db
 .streamlit/
 
 # Vercel
-.vercel 
+.vercel
+
+.streamlit/secrets.toml
+.env
+__pycache__/
+*.pyc
+.venv/
